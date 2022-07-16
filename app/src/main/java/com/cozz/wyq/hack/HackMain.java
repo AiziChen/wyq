@@ -94,7 +94,7 @@ public class HackMain {
                                                         for (String line : lines) {
                                                             String[] msgs = line.split("\\|");
                                                             if (msgs.length > 1 && content.contains(msgs[0])) {
-                                                                int delay = r.nextInt(delayEnd - delayStart + 1);
+                                                                int delay = delayStart + r.nextInt(delayEnd - delayStart);
                                                                 int index = r.nextInt(msgs.length - 1) + 1;
                                                                 new Thread(() -> {
                                                                     try {
