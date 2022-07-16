@@ -26,6 +26,8 @@ import java.util.Random;
 import java.util.UUID;
 
 import de.robv.android.xposed.XC_MethodHook;
+import de.robv.android.xposed.XC_MethodReplacement;
+import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
@@ -250,5 +252,21 @@ public class HackMain {
                 observer.startWatching();
             }
         });
+
+        XposedHelpers.findAndHookMethod("com.yunjian.wyq.ui.message.MucChatActivity", lpparam.classLoader, "l0", String.class, new XC_MethodHook() {
+            @Override
+            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                super.beforeHookedMethod(param);
+                Object roomMember = XposedHelpers.getObjectField(param.thisObject, "F");
+                XposedHelpers.callMethod(roomMember, "setRole", 2);
+            }
+        });
+        XposedHelpers.findAndHookMethod("com.yunjian.wyq.utils.w1", lpparam.classLoader,
+                "b", String.class, boolean.class, new XC_MethodReplacement() {
+                    @Override
+                    protected Object replaceHookedMethod(MethodHookParam param) throws Throwable {
+                        return true;
+                    }
+                });
     }
 }
