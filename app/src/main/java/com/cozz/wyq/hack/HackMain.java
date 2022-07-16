@@ -18,7 +18,6 @@ import com.cozz.wyq.MainActivity;
 import com.cozz.wyq.pojo.Group;
 import com.cozz.wyq.record.DefaultMessage;
 import com.cozz.wyq.record.msg.ChatMessage;
-import com.cozz.wyq.record.msg.ChatMessageExtra;
 import com.cozz.wyq.tools.DiskTool;
 
 import java.util.LinkedList;
@@ -27,7 +26,6 @@ import java.util.Random;
 import java.util.UUID;
 
 import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
@@ -57,17 +55,21 @@ public class HackMain {
                             if (msgStr.contains("\"type\":1")) {
                                 DefaultMessage defaultMessage = JSONObject.parseObject(msgStr, DefaultMessage.class);
                                 if (defaultMessage.getContent() != null) {
-                                    ChatMessageExtra msgExtra = JSONObject.parseObject(defaultMessage.getContent(), ChatMessageExtra.class);
-                                    ChatMessage chatMsg = msgExtra.getExtra();
+//                                    XposedBridge.log("msg: " + defaultMessage.getContent());
+                                    org.json.JSONObject jsonObject = new org.json.JSONObject(defaultMessage.getContent());
+                                    org.json.JSONObject chatMsg = new org.json.JSONObject(jsonObject.getString("extra"));
                                     if (mUser != null) {
                                         String mUserId = (String) XposedHelpers.callMethod(mUser, "getUserId");
                                         String mNickName = (String) XposedHelpers.callMethod(mUser, "getNickName");
-                                        if (chatMsg.isGroup() && chatMsg.getMsgType() == ChatMessage.TYPE_TEXT) {
-                                            String fromUserId = chatMsg.getFromUserId();
-                                            String fromUserName = chatMsg.getFromUserName();
-                                            String toUserId = chatMsg.getToUserId();
-                                            String roomJid = chatMsg.getRoomJid();
-                                            String content = chatMsg.getContent();
+                                        if ((chatMsg.optBoolean("isGroup", false) || chatMsg.optBoolean("group", false))
+                                                && chatMsg.optInt("type", 1) == ChatMessage.TYPE_TEXT) {
+                                            String fromUserId = chatMsg.getString("fromUserId");
+//                                            String fromUserName = chatMsg.getString("fromUserName");
+                                            String toUserId = chatMsg.getString("toUserId");
+                                            // iPhone version is not contains `roomJid`
+//                                            String roomJid = chatMsg.getRoomJid();
+                                            String roomJid = toUserId;
+                                            String content = chatMsg.getString("content");
                                             if (!mUserId.equals(fromUserId) && groups != null && groups.length > 0) {
                                                 for (Group g : groups) {
                                                     int delayStart = g.getDelayStart();
@@ -121,7 +123,7 @@ public class HackMain {
                                                                         Object dmsg = XposedHelpers.callStaticMethod(DefaultMessageClazz, "toDefaultMessage", rsChatMsg);
                                                                         Object managerInstance = XposedHelpers.callStaticMethod(MessageManagerClazz, "getInstance");
                                                                         XposedHelpers.callMethod(managerInstance, "sendMessage", dmsg, XposedHelpers.newInstance(aaa, v2TIMConnectManagerInstance, rsChatMsg));
-//                                                            XposedBridge.log(JSONObject.toJSONString(defaultMessage));
+//                                                                        XposedBridge.log(JSONObject.toJSONString(defaultMessage));
                                                                     }
                                                                 }).start();
                                                             }
@@ -193,9 +195,9 @@ public class HackMain {
                         super.beforeHookedMethod(param);
                         Object roomInfoActivity = XposedHelpers.getObjectField(param.thisObject, "a");
                         Object mucRoom = XposedHelpers.getObjectField(roomInfoActivity, "a");
-                        Object roomJid = XposedHelpers.callMethod(mucRoom, "getJid");
                         List mucRoomMembers = (List) XposedHelpers.callMethod(mucRoom, "getMembers");
                         LinkedList<String> usersInfo = new LinkedList<>();
+                        usersInfo.add("群id-" + XposedHelpers.callMethod(mucRoom, "getJid"));
                         for (Object roomMember : mucRoomMembers) {
                             int role = (int) XposedHelpers.callMethod(roomMember, "getRole");
                             // 群主或群管
@@ -214,7 +216,7 @@ public class HackMain {
                                         String userId = user[1];
                                         try {
                                             ClipboardManager clipboard = (ClipboardManager) ((Activity) roomInfoActivity).getSystemService(Context.CLIPBOARD_SERVICE);
-                                            ClipData clip = ClipData.newPlainText(nickName, roomJid + "," + userId);
+                                            ClipData clip = ClipData.newPlainText(nickName, userId);
                                             clipboard.setPrimaryClip(clip);
                                             Toast.makeText((Activity) roomInfoActivity, "复制成功", Toast.LENGTH_SHORT).show();
                                         } catch (Exception e) {
