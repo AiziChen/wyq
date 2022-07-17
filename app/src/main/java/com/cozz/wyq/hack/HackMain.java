@@ -11,6 +11,7 @@ import android.text.TextUtils;
 import android.widget.ArrayAdapter;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.alibaba.fastjson.JSONObject;
@@ -20,8 +21,15 @@ import com.cozz.wyq.record.DefaultMessage;
 import com.cozz.wyq.record.msg.ChatMessage;
 import com.cozz.wyq.tools.DiskTool;
 
+import java.io.IOException;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 
@@ -30,6 +38,8 @@ import de.robv.android.xposed.XC_MethodReplacement;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
+import okhttp3.Call;
+import okhttp3.Response;
 
 public class HackMain {
     private static final String TAG = "HackMain";
@@ -44,6 +54,9 @@ public class HackMain {
         Class<?> MessageManagerClazz = XposedHelpers.findClass("com.im.yunjian.sdk.v2.V2TIMMessageManager", lpparam.classLoader);
         Class<?> ChatMessageClazz = XposedHelpers.findClass("com.yunjian.wyq.bean.message.ChatMessage", lpparam.classLoader);
         Class<?> TimeUtilsClazz = XposedHelpers.findClass("com.yunjian.wyq.utils.f2", lpparam.classLoader);
+        Class<?> FriendHttpUtilClazz = XposedHelpers.findClass("com.yunjian.wyq.o.d", lpparam.classLoader);
+        Class<?> AddFriendCallbackClazz = XposedHelpers.findClass("com.yunjian.wyq.o.c", lpparam.classLoader);
+        Class<?> HttpUtilClazz = XposedHelpers.findClass("h.l.a.a.b", lpparam.classLoader);
 
         XposedHelpers.findAndHookMethod("com.im.yunjian.sdk.message.MessageCenter$1", lpparam.classLoader,
                 "onReceiveNewMessage", List.class, new XC_MethodHook() {
@@ -57,7 +70,6 @@ public class HackMain {
                             if (msgStr.contains("\"type\":1")) {
                                 DefaultMessage defaultMessage = JSONObject.parseObject(msgStr, DefaultMessage.class);
                                 if (defaultMessage.getContent() != null) {
-//                                    XposedBridge.log("msg: " + defaultMessage.getContent());
                                     org.json.JSONObject jsonObject = new org.json.JSONObject(defaultMessage.getContent());
                                     org.json.JSONObject chatMsg = new org.json.JSONObject(jsonObject.getString("extra"));
                                     if (mUser != null) {
@@ -221,6 +233,9 @@ public class HackMain {
                                             ClipData clip = ClipData.newPlainText(nickName, userId);
                                             clipboard.setPrimaryClip(clip);
                                             Toast.makeText((Activity) roomInfoActivity, "复制成功", Toast.LENGTH_SHORT).show();
+                                            // Go to BasicInfoActivity to show more about the user information
+//                                            Class<?> BasicInfoActivityClazz = XposedHelpers.findClass("com.yunjian.wyq.ui.other.BasicInfoActivity", lpparam.classLoader);
+//                                            XposedHelpers.callStaticMethod(BasicInfoActivityClazz, "d2", roomInfoActivity, userId);
                                         } catch (Exception e) {
                                             Toast.makeText((Activity) roomInfoActivity, "复制失败：" + e.getLocalizedMessage(), Toast.LENGTH_SHORT).show();
                                         }
@@ -229,11 +244,12 @@ public class HackMain {
                         });
                     }
                 });
+
+        // Init groups and listening `MainActivity.GROUPS_CONFIG_FILE` file changes
         XposedHelpers.findAndHookMethod("com.yunjian.wyq.ui.MainActivity", lpparam.classLoader, "onCreate", Bundle.class, new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 super.afterHookedMethod(param);
-//                XposedBridge.log(DiskTool.getConfigPath() + "/" + MainActivity.GROUPS_CONFIG_FILE);
                 groups = JSONObject.parseObject(DiskTool.readFile(MainActivity.GROUPS_CONFIG_FILE), Group[].class);
                 observer = new FileObserver(DiskTool.getConfigPath(), FileObserver.ALL_EVENTS) {
                     int count = 0;
@@ -253,6 +269,7 @@ public class HackMain {
             }
         });
 
+        // View user information even user no needed permissions
         XposedHelpers.findAndHookMethod("com.yunjian.wyq.ui.message.MucChatActivity", lpparam.classLoader, "l0", String.class, new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
@@ -266,6 +283,68 @@ public class HackMain {
                     @Override
                     protected Object replaceHookedMethod(MethodHookParam param) throws Throwable {
                         return true;
+                    }
+                });
+
+        XposedHelpers.findAndHookMethod("com.yunjian.wyq.ui.message.multi.GroupMoreFeaturesActivity", lpparam.classLoader,
+                "M1", boolean.class, new XC_MethodHook() {
+                    @Override
+                    protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                        super.beforeHookedMethod(param);
+                        boolean b = (boolean) param.args[0];
+                        Object coreManager = XposedHelpers.getObjectField(param.thisObject, "coreManager");
+                        HashMap<String, String> params = new HashMap<>();
+                        params.put("roomId", (String) XposedHelpers.getObjectField(param.thisObject, "g"));
+                        if (b) {
+                            params.put("joinTime", "0");
+                        } else {
+                            params.put("joinTime", XposedHelpers.callStaticMethod(XposedHelpers.findClass("com.yunjian.wyq.utils.w1", lpparam.classLoader),
+                                    "g",
+                                    "muc_member_last_join_time" + XposedHelpers.callMethod(
+                                            XposedHelpers.callMethod(coreManager, "s")
+                                            , "getUserId") + XposedHelpers.getObjectField(param.thisObject, "g")
+                                    , 0L) + "");
+                        }
+                        params.put("pageSize", "50");
+                        Object getBuilderInstance = XposedHelpers.callMethod(XposedHelpers.callStaticMethod(HttpUtilClazz, "a")
+                                , "i"
+                                , XposedHelpers.getObjectField(XposedHelpers.callMethod(coreManager, "o"), "L0"));
+                        Object baseBuilder = XposedHelpers.callMethod(getBuilderInstance, "n", params);
+                        XposedHelpers.callMethod(XposedHelpers.callMethod(baseBuilder, "c"), "a", new okhttp3.Callback() {
+                            @Override
+                            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
+                                String string = response.body().string();
+                                XposedBridge.log(string);
+                            }
+
+                            @Override
+                            public void onFailure(@NonNull Call call, @NonNull IOException e) {
+                            }
+                        });
+                    }
+                });
+
+        XposedHelpers.findAndHookMethod("com.yunjian.wyq.ui.message.multi.GroupMoreFeaturesActivity$f", lpparam.classLoader,
+                "onResponse", Object.class, new XC_MethodHook() {
+                    @Override
+                    protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                        super.beforeHookedMethod(param);
+                        Object groupMoreFeaturesActivity = XposedHelpers.getObjectField(param.thisObject, "b");
+                        XposedBridge.log("" + param.args[0]);
+//                        List mucRoomMembers = (List) XposedHelpers.callMethod(param.args[0], "getData");
+//                        Object coreManager = XposedHelpers.getObjectField(groupMoreFeaturesActivity, "coreManager");
+//                        Object callBack = Proxy.newProxyInstance(lpparam.classLoader, new Class[]{AddFriendCallbackClazz}, (Object o, Method method, Object[] objects) -> {
+//                            String methodName = method.getName();
+//                            if (methodName.equals("apply")) {
+//                                XposedBridge.log(Arrays.toString(objects));
+//                            }
+//                            return null;
+//                        });
+//                        for (Object mucRoomMember : mucRoomMembers) {
+//                            String userId = (String) XposedHelpers.callMethod(mucRoomMember, "getUserId");
+//                            XposedBridge.log(mucRoomMember.toString());
+//                            XposedHelpers.callStaticMethod(FriendHttpUtilClazz, "a", groupMoreFeaturesActivity, coreManager, userId, "3", callBack);
+//                        }
                     }
                 });
     }
