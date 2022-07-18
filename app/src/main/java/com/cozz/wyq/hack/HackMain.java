@@ -5,11 +5,9 @@ import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.os.Bundle;
 import android.os.FileObserver;
 import android.text.TextUtils;
-import android.util.Log;
 import android.widget.ArrayAdapter;
 import android.widget.Toast;
 
@@ -20,7 +18,6 @@ import com.alibaba.fastjson.JSONObject;
 import com.cozz.wyq.MainActivity;
 import com.cozz.wyq.pojo.Group;
 import com.cozz.wyq.record.DefaultMessage;
-import com.cozz.wyq.record.RoomMember;
 import com.cozz.wyq.record.msg.ChatMessage;
 import com.cozz.wyq.tools.DiskTool;
 
@@ -28,9 +25,6 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
@@ -38,7 +32,6 @@ import java.util.UUID;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XC_MethodReplacement;
-import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
