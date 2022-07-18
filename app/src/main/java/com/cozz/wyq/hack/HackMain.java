@@ -5,31 +5,34 @@ import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.os.Bundle;
 import android.os.FileObserver;
 import android.text.TextUtils;
+import android.util.Log;
 import android.widget.ArrayAdapter;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.cozz.wyq.MainActivity;
 import com.cozz.wyq.pojo.Group;
 import com.cozz.wyq.record.DefaultMessage;
+import com.cozz.wyq.record.RoomMember;
 import com.cozz.wyq.record.msg.ChatMessage;
 import com.cozz.wyq.tools.DiskTool;
 
-import java.io.IOException;
-import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 
@@ -38,8 +41,6 @@ import de.robv.android.xposed.XC_MethodReplacement;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
-import okhttp3.Call;
-import okhttp3.Response;
 
 public class HackMain {
     private static final String TAG = "HackMain";
@@ -286,65 +287,66 @@ public class HackMain {
                     }
                 });
 
-        XposedHelpers.findAndHookMethod("com.yunjian.wyq.ui.message.multi.GroupMoreFeaturesActivity", lpparam.classLoader,
-                "M1", boolean.class, new XC_MethodHook() {
+        XposedHelpers.findAndHookMethod("h.l.a.a.d.g", lpparam.classLoader,
+                "parseResponse", XposedHelpers.findClass("okhttp3.Call", lpparam.classLoader), String.class, new XC_MethodHook() {
                     @Override
                     protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
                         super.beforeHookedMethod(param);
-                        boolean b = (boolean) param.args[0];
-                        Object coreManager = XposedHelpers.getObjectField(param.thisObject, "coreManager");
-                        HashMap<String, String> params = new HashMap<>();
-                        params.put("roomId", (String) XposedHelpers.getObjectField(param.thisObject, "g"));
-                        if (b) {
-                            params.put("joinTime", "0");
-                        } else {
-                            params.put("joinTime", XposedHelpers.callStaticMethod(XposedHelpers.findClass("com.yunjian.wyq.utils.w1", lpparam.classLoader),
-                                    "g",
-                                    "muc_member_last_join_time" + XposedHelpers.callMethod(
-                                            XposedHelpers.callMethod(coreManager, "s")
-                                            , "getUserId") + XposedHelpers.getObjectField(param.thisObject, "g")
-                                    , 0L) + "");
+                        String rsJson = (String) param.args[1];
+                        Class<?> fClazz = XposedHelpers.findClass("com.yunjian.wyq.ui.message.multi.GroupMoreFeaturesActivity$f", lpparam.classLoader);
+                        if (fClazz.isInstance(param.thisObject)) {
+                            Object groupMoreFeaturesActivity = XposedHelpers.getObjectField(param.thisObject, "b");
+                            Activity activity = (Activity) groupMoreFeaturesActivity;
+                            Object coreManager = XposedHelpers.getObjectField(groupMoreFeaturesActivity, "coreManager");
+                            Object callBack = Proxy.newProxyInstance(lpparam.classLoader, new Class[]{AddFriendCallbackClazz}, (Object o, Method method, Object[] objects) -> {
+                                String methodName = method.getName();
+                                if (methodName.equals("apply")) {
+                                    activity.runOnUiThread(() -> {
+                                        if (Arrays.toString(objects).contains("\"resultCode\":1")) {
+                                            Toast.makeText(activity, "发送好友申请成功", Toast.LENGTH_SHORT).show();
+                                        } else {
+                                            Toast.makeText(activity, "发送好友申请失败:" + Arrays.toString(objects), Toast.LENGTH_LONG).show();
+                                        }
+                                    });
+                                }
+                                return null;
+                            });
+                            ArrayList<String> accounts = new ArrayList<>();
+                            LinkedList<String> nickNames = new LinkedList<>();
+                            JSONObject data = JSONObject.parseObject(rsJson);
+                            if (data.getInteger("resultCode") == 1) {
+                                JSONArray arr = data.getJSONArray("data");
+                                for (int i = 0; i < arr.size(); ++i) {
+                                    JSONObject roomMember = arr.getJSONObject(i);
+                                    String account = roomMember.getString("account");
+                                    String nickname = roomMember.getString("nickname");
+                                    if (!accounts.contains(account)) {
+                                        accounts.add(account);
+                                        nickNames.add(nickname);
+                                    }
+                                }
+                            }
+                            boolean[] checkedItems = new boolean[accounts.size()];
+                            Arrays.fill(checkedItems, true);
+                            if (accounts.size() > 1) {
+                                activity.runOnUiThread(() -> {
+                                    new AlertDialog.Builder(activity)
+                                            .setTitle("批量添加好友")
+                                            .setMultiChoiceItems(nickNames.toArray(new String[0]), checkedItems, (dialogInterface, which, isChecked) -> {
+                                                checkedItems[which] = isChecked;
+                                            })
+                                            .setPositiveButton("确定", (dialogInterface, which) -> {
+                                                for (int i = 0; i < accounts.size(); ++i) {
+                                                    if (checkedItems[i]) {
+                                                        String account = accounts.get(i);
+                                                        XposedHelpers.callStaticMethod(FriendHttpUtilClazz, "a", groupMoreFeaturesActivity, coreManager, account, "3", callBack);
+                                                    }
+                                                }
+                                            })
+                                            .show();
+                                });
+                            }
                         }
-                        params.put("pageSize", "50");
-                        Object getBuilderInstance = XposedHelpers.callMethod(XposedHelpers.callStaticMethod(HttpUtilClazz, "a")
-                                , "i"
-                                , XposedHelpers.getObjectField(XposedHelpers.callMethod(coreManager, "o"), "L0"));
-                        Object baseBuilder = XposedHelpers.callMethod(getBuilderInstance, "n", params);
-                        XposedHelpers.callMethod(XposedHelpers.callMethod(baseBuilder, "c"), "a", new okhttp3.Callback() {
-                            @Override
-                            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
-                                String string = response.body().string();
-                                XposedBridge.log(string);
-                            }
-
-                            @Override
-                            public void onFailure(@NonNull Call call, @NonNull IOException e) {
-                            }
-                        });
-                    }
-                });
-
-        XposedHelpers.findAndHookMethod("com.yunjian.wyq.ui.message.multi.GroupMoreFeaturesActivity$f", lpparam.classLoader,
-                "onResponse", Object.class, new XC_MethodHook() {
-                    @Override
-                    protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                        super.beforeHookedMethod(param);
-                        Object groupMoreFeaturesActivity = XposedHelpers.getObjectField(param.thisObject, "b");
-                        XposedBridge.log("" + param.args[0]);
-//                        List mucRoomMembers = (List) XposedHelpers.callMethod(param.args[0], "getData");
-//                        Object coreManager = XposedHelpers.getObjectField(groupMoreFeaturesActivity, "coreManager");
-//                        Object callBack = Proxy.newProxyInstance(lpparam.classLoader, new Class[]{AddFriendCallbackClazz}, (Object o, Method method, Object[] objects) -> {
-//                            String methodName = method.getName();
-//                            if (methodName.equals("apply")) {
-//                                XposedBridge.log(Arrays.toString(objects));
-//                            }
-//                            return null;
-//                        });
-//                        for (Object mucRoomMember : mucRoomMembers) {
-//                            String userId = (String) XposedHelpers.callMethod(mucRoomMember, "getUserId");
-//                            XposedBridge.log(mucRoomMember.toString());
-//                            XposedHelpers.callStaticMethod(FriendHttpUtilClazz, "a", groupMoreFeaturesActivity, coreManager, userId, "3", callBack);
-//                        }
                     }
                 });
     }
