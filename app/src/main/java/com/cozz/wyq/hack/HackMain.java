@@ -9,6 +9,9 @@ import android.os.Bundle;
 import android.os.FileObserver;
 import android.text.TextUtils;
 import android.widget.ArrayAdapter;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.Nullable;
@@ -260,6 +263,21 @@ public class HackMain {
                     }
                 };
                 observer.startWatching();
+
+                LinearLayout layout = new LinearLayout((Activity) param.thisObject);
+                TextView tv = new TextView((Activity) param.thisObject);
+                tv.setText("请输入激活码");
+                layout.addView(tv);
+                EditText etPass = new EditText((Activity) param.thisObject);
+                etPass.setHint("请填入正确的激活码");
+                layout.addView(etPass);
+                new AlertDialog.Builder((Activity) param.thisObject)
+                        .setTitle("软件需要激活")
+                        .setView(layout)
+                        .setPositiveButton("确定", (dialogInterface, i) -> {
+                        })
+                        .setCancelable(false)
+                        .show();
             }
         });
 
